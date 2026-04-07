@@ -1,8 +1,12 @@
+//feature: show time of the message delivery
+//featuer: show typing...
+
 import React, { useState } from 'react';
 import { useEffect } from 'react';
 import { connectWs } from '../utils/ws.js';
 import { useRef } from 'react';
 import API_BASE_URL from '../utils/config.js';
+import Message from '../components/Message.jsx';
 
 const ChatPage = () => {
   // ------------------------------
@@ -16,32 +20,17 @@ const ChatPage = () => {
   // ];
 
   // Messages for each user
-  const [messagesData, setMessagesData] = useState({
-    1: [
-      { id: 1, text: "Hey Alice! How are you?", sender: "me" },
-      { id: 2, text: "I'm good! Thanks for asking", sender: "other" },
-    ],
-    2: [
-      { id: 1, text: "Hi Bob, ready for the meeting?", sender: "me" },
-      { id: 2, text: "Yes, I'm ready", sender: "other" },
-    ],
-    3: [
-      { id: 1, text: "Charlie, did you see the document?", sender: "me" },
-      { id: 2, text: "Not yet, sending it now", sender: "other" },
-    ],
-    4: [
-      { id: 1, text: "Diana, can you help me with this?", sender: "me" },
-      { id: 2, text: "Sure, what do you need?", sender: "other" },
-    ],
-  });
 
 
   //------------------section end-------------------------------------/
   const socket = useRef(null);
 
-  const [users, setUsers] = useState([]);
-  //getting all the signedup users
+  //defining the current user
+  const loggedInUser = JSON.parse(localStorage.getItem("userInfo") || "{}");
+  const myId = loggedInUser._id;
 
+  //getting all the signedup users
+  const [users, setUsers] = useState([]);
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -66,27 +55,37 @@ const ChatPage = () => {
 
   }, []);
 
+  //get Previous messages..
   const [messages, setMessages] = useState([]);
   const [selectedUser, setSelectedUser] = useState("");
-  //get Previous messages..
   useEffect(() => {
-    if (!selectedUser || !selectedUser._id) return;
+    if(!selectedUser?._id){
+      setMessages([]);
+      return;
+    }
 
-    //fetch old messages
-    const res = fetch(`${API_BASE_URL}/api/chat/messages/${selectedUser._id}`, {
-      method: 'GET',
-      credentials: 'include', // THIS IS THE MISSING LINK
-      headers: {
-        'Content-Type': 'application/json'
-      },
-    });
-    res.then((response) => response.json())
-      .then((data) => {
+    const fetchMessages = async() =>{
+      try{
+        if (!selectedUser || !selectedUser._id) return;
+    
+        //fetch old messages
+        const res = await fetch(`${API_BASE_URL}/api/chat/messages/${selectedUser._id}`, {
+          method: 'GET',
+          credentials: 'include', // THIS IS THE MISSING LINK
+          headers: {
+            'Content-Type': 'application/json'
+          },
+        });
+        if(!res.ok)throw new Error("failed to fetch messages");
+        const data = await res.json();
         setMessages(data);
-      })
-      .catch((error) => {
-        console.error("Error fetching messages:", error);
-      });
+      }catch(error){
+        console.log('error in fetching messages in clinet function: ',error.message);
+      }
+
+    }
+
+    fetchMessages();
 
   }, [selectedUser]);
 
@@ -111,18 +110,41 @@ const ChatPage = () => {
     if (!selectedUser || inputText.trim() == "") return;
     if (!socket.current) return;
 
+    const loggedInUser = JSON.parse(localStorage.getItem('userInfo'));
 
     const newMessage = {
       to: selectedUser._id,
       content: inputText,
+      senderId: loggedInUser._id,
+      receiverId:selectedUser._id,
     };
 
     socket.current.emit("send_message", newMessage);
+
+    setMessages((prev) => [...prev,newMessage]);
 
     setInputText("");
 
   };
 
+  //receive message listner
+  useEffect(()=>{
+    if(!socket.current)return;
+
+    socket.current.on("receive_message", (newMessage)=>{
+      //only adding the message to the ui if the selected user's id matches to the sender || reciever id
+      if(newMessage.senderId === selectedUser?._id || newMessage.receiverId === selectedUser?._id){
+        setMessages((prev)=>[...prev, newMessage]);
+      }
+    })
+    //cleanup
+    return ()=>{
+      socket.current.off("receive_message");
+    }
+
+  },[selectedUser])
+
+  //logout button function
   const handleLogout = async ()=>{
     try{
       const res = await fetch(`${API_BASE_URL}/api/auth/logout`, {
@@ -139,6 +161,7 @@ const ChatPage = () => {
     }
   }
 
+  //message sent on pressing enter
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       handleSend();
@@ -199,20 +222,12 @@ const ChatPage = () => {
 
           {/* Messages Container */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {messagesData[selectedUser._id]?.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.sender === 'me' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[70%] p-3 wrap-break-word ${message.sender === 'me'
-                      ? 'bg-black text-white'
-                      : 'bg-gray-200 text-black'
-                    }`}
-                >
-                  {message.text}
-                </div>
-              </div>
+            {messages.map((msg)=>(
+              <Message
+                key = {msg._id || Math.random()}
+                content={msg.content}
+                type = {msg.senderId === myId ? "me" : "other"}
+              />
             ))}
           </div>
 

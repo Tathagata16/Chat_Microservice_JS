@@ -1,5 +1,7 @@
 import { io } from "socket.io-client";
 
 export const connectWs = ()=>{
-    return io("http://localhost:3002");
+    return io("http://localhost:3002",{
+        withCredentials:true
+    });
 }

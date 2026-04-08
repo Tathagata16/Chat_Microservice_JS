@@ -34,17 +34,22 @@ const ChatPage = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       try {
+        //api call
         const res = await fetch(`${API_BASE_URL}/api/auth/allusers`, {
-          method:"GET",
-          headers:{
-            'Content-Type':"application/josn"
+          method: "GET",
+          headers: {
+            'Content-Type': "application/josn"
           },
-          credentials:'include',
+          credentials: 'include',
         });
         const data = await res.json();
 
         console.log(data);
-        setUsers(data);
+        //filtering the loggedin user out of the list
+        const filteredUsers = data.filter(user => user._id != loggedInUser._id);
+
+        //setting up the list
+        setUsers(filteredUsers);
         console.log(users.length);
       } catch (error) {
         console.log("error in frontend fetch user function", error);
@@ -59,15 +64,15 @@ const ChatPage = () => {
   const [messages, setMessages] = useState([]);
   const [selectedUser, setSelectedUser] = useState("");
   useEffect(() => {
-    if(!selectedUser?._id){
+    if (!selectedUser?._id) {
       setMessages([]);
       return;
     }
 
-    const fetchMessages = async() =>{
-      try{
+    const fetchMessages = async () => {
+      try {
         if (!selectedUser || !selectedUser._id) return;
-    
+
         //fetch old messages
         const res = await fetch(`${API_BASE_URL}/api/chat/messages/${selectedUser._id}`, {
           method: 'GET',
@@ -76,11 +81,11 @@ const ChatPage = () => {
             'Content-Type': 'application/json'
           },
         });
-        if(!res.ok)throw new Error("failed to fetch messages");
+        if (!res.ok) throw new Error("failed to fetch messages");
         const data = await res.json();
         setMessages(data);
-      }catch(error){
-        console.log('error in fetching messages in clinet function: ',error.message);
+      } catch (error) {
+        console.log('error in fetching messages in clinet function: ', error.message);
       }
 
     }
@@ -116,46 +121,46 @@ const ChatPage = () => {
       to: selectedUser._id,
       content: inputText,
       senderId: loggedInUser._id,
-      receiverId:selectedUser._id,
+      receiverId: selectedUser._id,
     };
 
     socket.current.emit("send_message", newMessage);
 
-    setMessages((prev) => [...prev,newMessage]);
+    setMessages((prev) => [...prev, newMessage]);
 
     setInputText("");
 
   };
 
   //receive message listner
-  useEffect(()=>{
-    if(!socket.current)return;
+  useEffect(() => {
+    if (!socket.current) return;
 
-    socket.current.on("receive_message", (newMessage)=>{
+    socket.current.on("receive_message", (newMessage) => {
       //only adding the message to the ui if the selected user's id matches to the sender || reciever id
-      if(newMessage.senderId === selectedUser?._id || newMessage.receiverId === selectedUser?._id){
-        setMessages((prev)=>[...prev, newMessage]);
+      if (newMessage.senderId === selectedUser?._id || newMessage.receiverId === selectedUser?._id) {
+        setMessages((prev) => [...prev, newMessage]);
       }
     })
     //cleanup
-    return ()=>{
+    return () => {
       socket.current.off("receive_message");
     }
 
-  },[selectedUser])
+  }, [selectedUser])
 
   //logout button function
-  const handleLogout = async ()=>{
-    try{
+  const handleLogout = async () => {
+    try {
       const res = await fetch(`${API_BASE_URL}/api/auth/logout`, {
-        method:"POST",
-        credentials:'include'
+        method: "POST",
+        credentials: 'include'
       });
-      if(res.ok){
+      if (res.ok) {
         localStorage.removeItem('userInfo');
         window.location.href = '/login';
       }
-    }catch(error){
+    } catch (error) {
       alert('error in logout')
       console.error(error);
     }
@@ -176,9 +181,30 @@ const ChatPage = () => {
       {/* Sidebar - User List */}
       <div className="w-80 border-r border-black flex flex-col">
         {/* Sidebar Header */}
-        <div className="border-b border-black p-4">
-          <h1 className="text-black text-xl font-bold">Chats</h1>
-          <p className="text-gray-600 text-sm mt-1">{users.length} contacts</p>
+        <div className="border-b border-black p-4 bg-gray-50">
+          {/* Horizontal Profile & Chats Header */}
+          <div className="flex items-center justify-between mb-2">
+
+            {/* Left Side: Chat Title */}
+            <div className="text-right">
+              <h1 className="text-black text-xl font-black tracking-tight uppercase">Chats</h1>
+            </div>
+            {/* Right Side: Logged-in User */}
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-black flex items-center justify-center text-white font-bold text-sm shrink-0">
+                {loggedInUser.username?.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] text-gray-500 uppercase leading-none mb-1">Me</span>
+                <h2 className="text-black font-bold text-sm truncate max-w-25">
+                  {loggedInUser.username}
+                </h2>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Contact Count Subheader */}
         </div>
 
         {/* Users List */}
@@ -188,8 +214,8 @@ const ChatPage = () => {
               key={user._id}
               onClick={() => setSelectedUser(user)}
               className={`p-4 cursor-pointer border-b border-gray-200 transition-colors ${selectedUser?._id === user._id
-                  ? 'bg-gray-200'
-                  : 'hover:bg-gray-100'
+                ? 'bg-gray-200'
+                : 'hover:bg-gray-100'
                 }`}
             >
               <div className="flex items-center justify-between">
@@ -204,7 +230,7 @@ const ChatPage = () => {
             </div>
           ))}
         </div>
-          <button onClick={handleLogout} className='border-2 text-black items-end bg-white m-3 h-10 hover:bg-black hover:text-white cursor-pointer'>Logout</button>
+        <button onClick={handleLogout} className='border-2 text-black items-end bg-white m-3 h-10 hover:bg-black hover:text-white cursor-pointer'>Logout</button>
       </div>
 
       {/* Chat Section */}
@@ -222,11 +248,11 @@ const ChatPage = () => {
 
           {/* Messages Container */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {messages.map((msg)=>(
+            {messages.map((msg) => (
               <Message
-                key = {msg._id || Math.random()}
+                key={msg._id || Math.random()}
                 content={msg.content}
-                type = {msg.senderId === myId ? "me" : "other"}
+                type={msg.senderId === myId ? "me" : "other"}
               />
             ))}
           </div>

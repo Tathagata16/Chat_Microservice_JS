@@ -3,151 +3,35 @@
 
 import React, { useState } from 'react';
 import { useEffect } from 'react';
-import { connectWs } from '../utils/ws.js';
-import { useRef } from 'react';
 import API_BASE_URL from '../utils/config.js';
 import Message from '../components/Message.jsx';
+import useChatStore from '../utils/useChatstore.js';
 
 const ChatPage = () => {
-  // ------------------------------
-  //dummy data section
-  //dummy users
-  //   const users = [
-  //   { id: 1, name: "Alice Johnson", status: "online" },
-  //   { id: 2, name: "Bob Smith", status: "offline" },
-  //   { id: 3, name: "Charlie Brown", status: "online" },
-  //   { id: 4, name: "Diana Prince", status: "away" },
-  // ];
 
-  // Messages for each user
+  const { getUsers, initSocket, users, selectedUser, setSelectedUser, messages, sendMessage, clearChatState } = useChatStore();
 
-
-  //------------------section end-------------------------------------/
-  const socket = useRef(null);
-
-  //defining the current user
-  const loggedInUser = JSON.parse(localStorage.getItem("userInfo") || "{}");
+  const loggedInUser = JSON.parse(localStorage.getItem('userInfo'));
   const myId = loggedInUser._id;
-
-  //getting all the signedup users
-  const [users, setUsers] = useState([]);
+  //using zustand
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        //api call
-        const res = await fetch(`${API_BASE_URL}/api/auth/allusers`, {
-          method: "GET",
-          headers: {
-            'Content-Type': "application/josn"
-          },
-          credentials: 'include',
-        });
-        const data = await res.json();
-
-        console.log(data);
-        //filtering the loggedin user out of the list
-        const filteredUsers = data.filter(user => user._id != loggedInUser._id);
-
-        //setting up the list
-        setUsers(filteredUsers);
-        console.log(users.length);
-      } catch (error) {
-        console.log("error in frontend fetch user function", error);
-      }
+    if (myId) {
+      getUsers(loggedInUser._id);
+      initSocket();
     }
+  }, [getUsers, initSocket, myId]);
 
-    fetchUsers();
-
-  }, []);
-
-  //get Previous messages..
-  const [messages, setMessages] = useState([]);
-  const [selectedUser, setSelectedUser] = useState("");
-  useEffect(() => {
-    if (!selectedUser?._id) {
-      setMessages([]);
-      return;
-    }
-
-    const fetchMessages = async () => {
-      try {
-        if (!selectedUser || !selectedUser._id) return;
-
-        //fetch old messages
-        const res = await fetch(`${API_BASE_URL}/api/chat/messages/${selectedUser._id}`, {
-          method: 'GET',
-          credentials: 'include', // THIS IS THE MISSING LINK
-          headers: {
-            'Content-Type': 'application/json'
-          },
-        });
-        if (!res.ok) throw new Error("failed to fetch messages");
-        const data = await res.json();
-        setMessages(data);
-      } catch (error) {
-        console.log('error in fetching messages in clinet function: ', error.message);
-      }
-
-    }
-
-    fetchMessages();
-
-  }, [selectedUser]);
-
-
-  //establishing connection
-  useEffect(() => {
-    socket.current = connectWs();
-
-    socket.current.on('connect', () => {
-      console.log("connected to the socket server from client");
-
-    })
-
-    return () => {
-      socket.current.disconnect();
-    };
-  }, []);
 
   const [inputText, setInputText] = useState("");
   //sending message
   const handleSend = () => {
     if (!selectedUser || inputText.trim() == "") return;
-    if (!socket.current) return;
 
-    const loggedInUser = JSON.parse(localStorage.getItem('userInfo'));
 
-    const newMessage = {
-      to: selectedUser._id,
-      content: inputText,
-      senderId: loggedInUser._id,
-      receiverId: selectedUser._id,
-    };
-
-    socket.current.emit("send_message", newMessage);
-
-    setMessages((prev) => [...prev, newMessage]);
-
+    sendMessage(inputText);
     setInputText("");
 
   };
-
-  //receive message listner
-  useEffect(() => {
-    if (!socket.current) return;
-
-    socket.current.on("receive_message", (newMessage) => {
-      //only adding the message to the ui if the selected user's id matches to the sender || reciever id
-      if (newMessage.senderId === selectedUser?._id || newMessage.receiverId === selectedUser?._id) {
-        setMessages((prev) => [...prev, newMessage]);
-      }
-    })
-    //cleanup
-    return () => {
-      socket.current.off("receive_message");
-    }
-
-  }, [selectedUser])
 
   //logout button function
   const handleLogout = async () => {
@@ -158,6 +42,7 @@ const ChatPage = () => {
       });
       if (res.ok) {
         localStorage.removeItem('userInfo');
+        clearChatState();
         window.location.href = '/login';
       }
     } catch (error) {
@@ -165,16 +50,12 @@ const ChatPage = () => {
       console.error(error);
     }
   }
-
   //message sent on pressing enter
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       handleSend();
     }
   };
-
-
-
 
   return (
     <div className="h-screen bg-white flex">

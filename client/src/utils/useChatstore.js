@@ -66,6 +66,7 @@ const useChatStore = create((set, get) => ({
             content: content,
             senderId: loggedInUser._id,
             receiverId: selectedUser._id,
+            createdAt: Date.now(),
         };
 
         // 1. Emit to server

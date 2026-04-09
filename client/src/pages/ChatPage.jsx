@@ -134,6 +134,7 @@ const ChatPage = () => {
                 key={msg._id || Math.random()}
                 content={msg.content}
                 type={msg.senderId === myId ? "me" : "other"}
+                timestamp = {msg.createdAt}
               />
             ))}
           </div>

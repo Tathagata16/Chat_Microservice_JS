@@ -1,7 +1,19 @@
 import React from 'react'
 
-function Message({content, type}) {
-    const isMe = type === "me";
+function Message({content, type, timestamp}) {
+  
+  const formatTime = (ts) =>{
+    if(!ts) return "";
+    
+    const date = new Date(ts);
+    return date.toLocaleString([], {
+      hour: "2-digit",
+      minute:"2-digit",
+      hour12:true
+    });
+  };
+  
+  const isMe = type === "me";
 
   return (
     <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} mb-3`}>
@@ -13,6 +25,7 @@ function Message({content, type}) {
         } shadow-sm wrap-break-word`}
       >
         {content}
+      <span className=' text-[9px] text-green-400 m-3 uppercase'>{formatTime(timestamp)}</span>
       </div>
     </div>
   );

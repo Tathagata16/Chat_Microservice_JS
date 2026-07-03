@@ -1,4 +1,4 @@
-chat app with Microservices Architecture
+## chat application
 # upcoming features: 
 * real time translate withing socket connection
 * online, offline, typing, last seen events

@@ -30,7 +30,7 @@ const ChatPage = () => {
       getUsers(myId);
       initSocket();
     }
-  }, [getUsers, initSocket, loggedInUser, myId, navigate]);
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

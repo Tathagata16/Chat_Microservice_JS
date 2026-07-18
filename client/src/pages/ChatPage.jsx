@@ -6,10 +6,11 @@ import { useEffect } from 'react';
 import API_BASE_URL from '../utils/config.js';
 import Message from '../components/Message.jsx';
 import useChatStore from '../utils/useChatstore.js';
+import { useRef } from 'react';
 
 const ChatPage = () => {
 
-  const { getUsers, initSocket, users, selectedUser, setSelectedUser, messages, sendMessage, clearChatState } = useChatStore();
+  const { getUsers, initSocket, users, selectedUser, setSelectedUser, messages, sendMessage, clearChatState, isTyping } = useChatStore();
 
   const loggedInUser = JSON.parse(localStorage.getItem('userInfo'));
   const myId = loggedInUser._id;
@@ -21,12 +22,130 @@ const ChatPage = () => {
     }
   }, [getUsers, initSocket, myId]);
 
+  useEffect(() => {
+
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      console.log("Speech Recognition not supported");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+
+    recognitionRef.current = recognition;
+
+    recognition.onresult = (event) => {
+
+      let finalTranscript = "";
+      let interimTranscript = "";
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+
+        const transcript = event.results[i][0].transcript;
+
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interimTranscript += transcript;
+        }
+
+      }
+
+      setInputText(finalTranscript + interimTranscript);
+
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.onerror = (event) => {
+      console.error("Speech Recognition Error:", event.error);
+      setIsListening(false);
+    };
+
+    return () => {
+      recognition.stop();
+    };
+
+  }, []);
 
   const [inputText, setInputText] = useState("");
+  const [isListening, setIsListening] = useState(false);
+
+
+  const recognitionRef = useRef(null);
+  const typingRef = useRef(false);
+  const timeoutRef = useRef(null);
+
+  //handle typing event
+  const handleTyping = (e) => {
+
+    setInputText(e.target.value);
+
+    const socket = useChatStore.getState().socket;
+
+    if (!typingRef.current) {
+      typingRef.current = true;
+
+      socket.emit("typing", {
+        to: selectedUser._id
+      });
+    }
+
+    clearTimeout(timeoutRef.current);
+
+    timeoutRef.current = setTimeout(() => {
+
+      typingRef.current = false;
+
+      socket.emit("stop_typing", {
+        to: selectedUser._id
+      });
+
+    }, 1000);
+  };
+
+  //listening for speech input
+  const toggleListening = () => {
+
+    if (!recognitionRef.current) return;
+
+    if (isListening) {
+
+      recognitionRef.current.stop();
+      setIsListening(false);
+
+    } else {
+
+      recognitionRef.current.start();
+      setIsListening(true);
+
+    }
+
+  };
+
   //sending message
   const handleSend = () => {
     if (!selectedUser || inputText.trim() == "") return;
 
+    const socket = useChatStore.getState().socket;
+
+    if (typingRef.current) {
+
+      socket.emit("stop_typing", {
+        to: selectedUser._id
+      });
+
+      typingRef.current = false;
+      clearTimeout(timeoutRef.current);
+    }
 
     sendMessage(inputText);
     setInputText("");
@@ -121,8 +240,15 @@ const ChatPage = () => {
           <div className="border-b border-black p-4">
             <div className="flex items-center">
               <div>
-                <h2 className="text-black text-xl font-bold">{selectedUser.username}</h2>
+                <h2 className="text-black text-xl font-bold">
+                  {selectedUser.username}
+                </h2>
 
+                {isTyping && (
+                  <p className="text-sm text-green-300">
+                    typing...
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -134,7 +260,7 @@ const ChatPage = () => {
                 key={msg._id || Math.random()}
                 content={msg.content}
                 type={msg.senderId === myId ? "me" : "other"}
-                timestamp = {msg.createdAt}
+                timestamp={msg.createdAt}
               />
             ))}
           </div>
@@ -142,20 +268,33 @@ const ChatPage = () => {
           {/* Input Area */}
           <div className="border-t border-black p-4">
             <div className="flex gap-2">
+
               <input
                 type="text"
                 value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
+                onChange={handleTyping}
                 onKeyDown={handleKeyPress}
-                placeholder={`Message ${selectedUser.name}...`}
+                placeholder={`Message ${selectedUser.username}...`}
                 className="flex-1 px-4 py-2 border border-black bg-white text-black focus:outline-none"
               />
+
+              <button
+                onClick={toggleListening}
+                className={`px-4 py-2 border transition-colors ${isListening
+                  ? "bg-red-600 text-white"
+                  : "bg-white text-black hover:bg-gray-100"
+                  }`}
+              >
+                {isListening ? "🎙️" : "🎤"}
+              </button>
+
               <button
                 onClick={handleSend}
                 className="px-6 py-2 bg-black text-white hover:bg-gray-800 transition-colors"
               >
                 Send
               </button>
+
             </div>
           </div>
         </div>

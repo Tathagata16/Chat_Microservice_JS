@@ -11,6 +11,7 @@ const useChatStore = create((set, get) => ({
     socket: null,
     isUsersLoading: false,
     isMessagesLoading: false,
+    isTyping: false,
 
     //define actions...
 
@@ -30,6 +31,25 @@ const useChatStore = create((set, get) => ({
             if (newMessage.senderId === selectedUser?._id || newMessage.receiverId === selectedUser?._id) {
                 set({ messages: [...messages, newMessage] });
             }
+        });
+        socket.on("user_typing", ({ from }) => {
+
+            const { selectedUser } = get();
+
+            if (selectedUser?._id === from) {
+                set({ isTyping: true });
+            }
+
+        });
+
+        socket.on("user_stop_typing", ({ from }) => {
+
+            const { selectedUser } = get();
+
+            if (selectedUser?._id === from) {
+                set({ isTyping: false });
+            }
+
         });
 
         set({ socket });

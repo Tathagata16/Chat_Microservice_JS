@@ -1,4 +1,4 @@
-import sendMessage  from '../services/messageService.js';
+import sendMessage from '../services/messageService.js';
 import cookie from 'cookie';
 import jwt from 'jsonwebtoken'
 
@@ -11,11 +11,11 @@ function initSocket(io) {
         const rawCookies = socket.handshake.headers.cookie || '';
         const cookies = cookie.parse(rawCookies);
         const token = cookies.token;
-        if(!token){
+        if (!token) {
             console.log("no token found in socket Handshake");
             return socket.disconnect();
         }
-        try{
+        try {
             //verifying token to get userId
 
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -23,33 +23,64 @@ function initSocket(io) {
 
             console.log('verified user id is: ', userId);
             userSocketMap[userId] = socket.id;
-    
+
             //send message event
             socket.on("send_message", async (data) => {
-    
-                if(!data.to || !data.content) return;
-    
+
+                if (!data.to || !data.content) return;
+
                 const message = await sendMessage({
                     senderId: userId,
                     receiverId: data.to,
                     content: data.content
                 });
-    
+
                 const recieverSocketId = userSocketMap[data.to];
                 if (recieverSocketId) {
                     io.to(recieverSocketId).emit("receive_message", message);
                 }
-    
+
             });
-    
-    
+
+
+            
+            //typing event
+            socket.on("typing", ({ to }) => {
+                // if (!data?.to) return;
+                
+                const receiverSocketId = userSocketMap[to];
+                
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit("user_typing", {
+                        from: userId
+                    });
+                }
+                
+            });
+            
+            
+            //stop_typing
+            socket.on("stop_typing", ({ to }) => {
+                // if (!data?.to) return;
+                
+                const receiverSocketId = userSocketMap[to];
+                
+                if (receiverSocketId) {
+                    io.to(receiverSocketId).emit("user_stop_typing", {
+                        from: userId
+                    });
+                }
+                
+            });
+            
             //disconnect event
             socket.on('disconnect', () => {
                 delete userSocketMap[userId];
             });
 
-        }catch(error){
-            console.log("socket JWT verification failed in socket server",error.message);
+
+        } catch (error) {
+            console.log("socket JWT verification failed in socket server", error.message);
             socket.disconnect();
 
         }
@@ -59,4 +90,4 @@ function initSocket(io) {
 
 
 
-export {initSocket}
+export { initSocket }
